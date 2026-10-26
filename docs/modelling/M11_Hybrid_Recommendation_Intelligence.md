@@ -108,6 +108,8 @@ Candidates are deduplicated by user and product. Co-occurrence candidates rank f
 | Distinct recommended products | 74,006 |
 | Source products | 96,832 |
 
+**Catalog coverage clarification:** Catalog coverage depends on the recommendation output being measured. The candidate-level distinct-product count and the final evaluation's distinct recommended-product count are not necessarily equivalent. The standardized evaluation should be used for cross-model catalog coverage comparisons.
+
 This experiment does not outperform the original M9 co-occurrence baseline. It also uses only each user's last viewed product, rather than aggregating evidence from all context products as the original M9 user-level evaluation did.
 
 ## 6. Experiment C — Popularity Fallback
@@ -142,6 +144,21 @@ The strategy:
 
 The fallback ensures that every eligible user receives 10 recommendations. However, higher recommendation availability does not guarantee higher relevance.
 
+**Persistence verification**
+
+The aggregate and user-level evaluation tables were successfully written to Unity Catalog Gold and subsequently read back for verification.
+
+| Verification | Result |
+|---|---:|
+| User-level evaluation rows | 16,828 |
+| Distinct evaluated users | 16,828 |
+| Aggregate summary rows | 1 |
+| Mean user Recall@10 | 0.152487 |
+| Hit rate@10 | 0.182791 |
+| Total hits | 3,367 |
+
+The persisted evaluation metadata confirms a context window of October 25–28, 2019, and a purchase-target window of October 29–31, 2019. The verified aggregate metrics match the original fallback evaluation.
+
 ## 7. Evaluation Protocol
 
 The same temporal protocol was used for the hybrid user-level evaluations:
@@ -165,13 +182,15 @@ Users without personalized candidates remain in the cohort. For the popularity f
 
 ## 8. Overall Comparison
 
-| Model | Mean user Recall@10 | Hit rate@10 | Total hits |
-|---|---:|---:|---:|
-| M9 session co-occurrence | 0.206393 | 0.243285 | 4,559 |
-| M11 hybrid + popularity fallback | 0.152487 | 0.182791 | 3,367 |
-| M9 purchase popularity | 0.152013 | 0.183147 | 3,463 |
-| M11 RRF hybrid | 0.146916 | 0.176373 | 3,221 |
-| M10 sequential transition | 0.132323 | 0.160269 | 2,905 |
+| Model | Mean user Recall@10 | Hit rate@10 | Total hits | Catalog coverage |
+|---|---:|---:|---:|---:|
+| M9 session co-occurrence | 0.206393 | 0.243285 | 4,559 | 11.041% |
+| M11 hybrid + popularity fallback | 0.152487 | 0.182791 | 3,367 | 11.050% |
+| M9 purchase popularity | 0.152013 | 0.183147 | 3,463 | 0.006% |
+| M11 RRF hybrid | 0.146916 | 0.176373 | 3,221 | 12.612% |
+| M10 sequential transition | 0.132323 | 0.160269 | 2,905 | 11.519% |
+
+Session co-occurrence remains the strongest model on Recall@10 and Hit Rate@10 under the reported results. The RRF hybrid provides the broadest catalog coverage, while the popularity-fallback strategy guarantees recommendation availability for all 16,828 eligible users. These results illustrate a trade-off between relevance, catalog diversity, and recommendation availability. Because the evaluation contexts differ between some experiments, these findings should be interpreted as evidence from the reported experiments rather than a definitive ranking under a fully standardized protocol.
 
 The original M9 co-occurrence evaluation remains the strongest reported result.
 
@@ -186,6 +205,7 @@ The M11 hybrid experiments do not establish an improvement over the co-occurrenc
 5. **Offline evaluation:** The metrics do not prove causal lift, incremental revenue, or online effectiveness.
 6. **No parameter tuning:** RRF and fallback settings were tested as initial baselines rather than exhaustively optimized.
 7. **Catalog coverage:** Coverage uses the full observed product catalog as the denominator and should not be confused with the fraction of target-window purchased products covered.
+8. **Fallback strategy distinction:** The co-occurrence-first fallback experiment prioritizes co-occurrence candidates, uses sequential candidates to fill remaining positions, and then uses training-only popularity candidates. This is a different ranking strategy from the RRF hybrid. Its results should therefore be reported separately rather than treated as another evaluation of the same model.
 
 ## 10. Recommended Next Steps
 
@@ -204,6 +224,8 @@ The following M11 evaluation tables were verified:
 - `hybrid_recommendation_evaluation`: 1 row.
 - `hybrid_popularity_fallback_user_evaluation`: 16,828 rows.
 - `hybrid_popularity_fallback_evaluation`: 1 row.
+
+The popularity-fallback evaluation was independently verified after persistence. The aggregate table returned one row, and the user-level table returned 16,828 rows for 16,828 distinct users. The persisted metrics matched the computed evaluation, including Recall@10 of 0.152487, Hit Rate@10 of 0.182791, and 3,367 total hits.
 
 The training-only co-occurrence table, RRF hybrid table, and fallback outputs were persisted in the Gold layer.
 
